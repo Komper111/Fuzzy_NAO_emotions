@@ -5,9 +5,13 @@ import skfuzzy as fuzz
 import numpy as np
 from enum import Enum
 from naoqi import ALProxy
+from aubio import fvec, source, pvoc, filterbank
+from numpy import vstack, zeros
+import pyaudio
+import wave
 
 #### CONSTANTS ####
-NAO_IP = "147.232.24.141" 
+NAO_IP = "147.232.24.133" 
 emotion_combination = [[None, 0, 1, 2, 23, 16, 18, 20],[0, None, 3, 4, 5, 23, 19, 21], [1, 3, None, 6, 7, 8, 23, 22], [2, 4, 6, None, 9, 24, 10, 23], [23, 5, 7, 9, None, 11, 12, 13], [16, 23, 8, 24, 11, None, 14, 15], [18, 19, 23, 10, 12, 14, None, 17], [20, 21, 22, 23, 13, 15, 17, None]]
 
 #### Enumerations ####
@@ -17,11 +21,10 @@ class InVariables(Enum):
 	pitch_maximum = 2
 	pitch_minimum = 3
 	pitch_range = 4
-	pitch_mean_derivative = 5
-	energy_mean = 6
-	energy_variance = 7
-	energy_maximum = 8
-	energy_range = 9
+	energy_mean = 5
+	energy_variance = 6
+	energy_maximum = 7
+	energy_range = 8
 
 class BasicEmotions(Enum):
 	joy = 0
@@ -60,18 +63,13 @@ class OtherEmotions(Enum):
 	conflicted = 23
 	unclasified = 24
 
-#try:
-#	alconnman = ALProxy("ALTextToSpeech", NAO_IP, 9559)
-#	print ("Nao: helo")
-#except Exception, e:
-#	print ("[ERROR]: ",e)
-#alconnman.say("Hi dude!")
+#naoMotion = ALProxy("ALBehaviorManager", NAO_IP, 9559)
+#naoSpeech = ALProxy("ALTextToSpeech", NAO_IP, 9559)
 
 ##### Input universes #####
 inputUniverses = []
 inputUniverses.append(np.arange(0, 5, .1)) 
 inputUniverses.append(np.arange(0, 5, .1))
-inputUniverses.append(np.arange(0, 10, .1))
 inputUniverses.append(np.arange(0, 10, .1))
 inputUniverses.append(np.arange(0, 10, .1))
 inputUniverses.append(np.arange(0, 10, .1))
@@ -96,9 +94,6 @@ high_pitch_minimum = fuzz.gaussmf(inputUniverses[InVariables.pitch_minimum.value
 ### membership functions of pitch range ###
 low_pitch_range = fuzz.gaussmf(inputUniverses[InVariables.pitch_range.value], 0, 2)
 high_pitch_range = fuzz.gaussmf(inputUniverses[InVariables.pitch_range.value], 0, 2)
-### membership functions of derivative pitch mean  ###
-low_pitch_mean_derivative = fuzz.gaussmf(inputUniverses[InVariables.pitch_mean_derivative.value], 0, 2)
-high_pitch_mean_derivative = fuzz.gaussmf(inputUniverses[InVariables.pitch_mean_derivative.value], 0, 2)
 ### membership functions of energy mean ###
 low_energy_mean = fuzz.gaussmf(inputUniverses[InVariables.energy_mean.value], 0, 2)
 high_energy_mean = fuzz.gaussmf(inputUniverses[InVariables.energy_mean.value], 0, 2)
@@ -111,6 +106,104 @@ high_energy_maximum = fuzz.gaussmf(inputUniverses[InVariables.energy_maximum.val
 ### membership functions of pitch range ###
 low_energy_range = fuzz.gaussmf(inputUniverses[InVariables.energy_range.value], 0, 2)
 high_energy_range = fuzz.gaussmf(inputUniverses[InVariables.energy_range.value], 0, 2)
+
+#### Sound detection ####
+def recordVoice(NAME, SECONDS):
+	CHUNK = 512 
+	FORMAT = pyaudio.paInt16 #paInt8
+	CHANNELS = 1 
+	RATE = 44100 #sample rate
+	RECORD_SECONDS = SECONDS
+	WAVE_OUTPUT_FILENAME = NAME
+
+	p = pyaudio.PyAudio()
+
+	stream = p.open(format=FORMAT,
+	                channels=CHANNELS,
+	                rate=RATE,
+	                input=True,
+	                frames_per_buffer=CHUNK) #buffer
+
+	print("* recording")
+
+	frames = []
+
+	for i in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
+	    data = stream.read(CHUNK)
+	    frames.append(data) # 2 bytes(16 bits) per channel
+
+	print("* done recording")
+
+	stream.stop_stream()
+	stream.close()
+	p.terminate()
+
+	wf = wave.open(WAVE_OUTPUT_FILENAME, 'wb')
+	wf.setnchannels(CHANNELS)
+	wf.setsampwidth(p.get_sample_size(FORMAT))
+	wf.setframerate(RATE)
+	wf.writeframes(b''.join(frames))
+	wf.close()
+
+#### Sound analyze functions ####
+def getPitches(filename):
+	pass
+
+def getEnergies(filename):
+	win_s = 512                 # fft size
+	hop_s = win_s / 4           # hop size
+
+	samplerate = 0
+	s = source(filename, samplerate, hop_s)
+	samplerate = s.samplerate
+
+	pv = pvoc(win_s, hop_s)
+
+	f = filterbank(40, win_s)
+	f.set_mel_coeffs_slaney(samplerate)
+
+	energies = zeros((40,))
+	o = {}
+
+	total_frames = 0
+	downsample = 2
+
+	while True:
+	    samples, read = s()
+	    fftgrain = pv(samples)
+	    new_energies = f(fftgrain)
+	    energies = vstack( [energies, new_energies] )
+	    total_frames += read
+	    if read < hop_s: break
+
+	su = 0
+	energy_minimum = 100
+	energy_maximum = 0
+	avg_energies = []
+	for i in range(1,len(energies)):
+		for j in range(1, (len(energies[i])-1)):
+			e = energies[i][j]
+			su += e
+			if energy_maximum < e:
+				energy_maximum = e
+			elif energy_minimum > e:
+				energy_minimum = e
+		avg_energies.append(su/(len(energies[i])-1))
+		su = 0
+
+	su2 = 0
+	for e in avg_energies:
+		su += e
+		su2 += pow(e, 2)
+	energy = su/len(avg_energies)
+	energy_variance = su2/len(avg_energies)
+
+	energy_range = energy_maximum - energy_minimum
+	#print "Energy: " + str(energy)
+	#print "Max energy: " + str(energy_maximum)
+	#print "Energy range: " + str(energy_range)
+	#print "Energy variance: " + str(energy_variance)
+	return dict(e = energy, e_varience = energy_variance, e_maximum = energy_maximum, e_range = energy_range)
 
 #### Category functions ####
 def pitch_mean_category(pitch_mean_in):
@@ -137,11 +230,6 @@ def pitch_range_category(pitch_range_in):
     pitch_range_cat_low = fuzz.interp_membership(inputUniverses[InVariables.pitch_range.value], low_pitch_range, pitch_range_in)
     pitch_range_cat_high = fuzz.interp_membership(inputUniverses[InVariables.pitch_range.value], high_pitch_range, pitch_range_in) 
     return dict(low = pitch_range_cat_low,high = pitch_range_cat_high)
-
-def pitch_mean_derivative_category(pitch_mean_derivative_in):
-    pitch_mean_derivative_cat_low = fuzz.interp_membership(inputUniverses[InVariables.pitch_mean_derivative.value], low_pitch_mean_derivative, pitch_mean_derivative_in)
-    pitch_mean_derivative_cat_high = fuzz.interp_membership(inputUniverses[InVariables.pitch_mean_derivative.value], high_pitch_mean_derivative, pitch_mean_derivative_in) 
-    return dict(low = pitch_mean_derivative_cat_low,high = pitch_mean_derivative_cat_high)
 
 def energy_mean_category(energy_mean_in):
     energy_mean_cat_low = fuzz.interp_membership(inputUniverses[InVariables.energy_mean.value], low_energy_mean, energy_mean_in)
@@ -186,38 +274,40 @@ def getMaxEmotion(emotions):
 	else:
 		return BasicEmotions(idMax1)
 
+def makeBehaveior(emotion):
+	if(type(emotion) == BasicEmotions):
+		naoMotion.runBehavior(emotion.name)	
+		print "[NAO]: Making " + emotion.name + " behaveior." 
+	else:
+		s = "I feel " + emotion.name
+		print "[NAO]: Saying " + emotion.name + " behaveior." 
+		naoSpeech.say(s)
+
 #### Basic emotions values ####
 basic_emotions = [0,0,0,0,0,0,0,0]
 	
 
 while True:
-	#### Geting extracted values from voice ####
-	pitch_mean_in = 4.6
-	pitch_variance_in = 3.2
-	pitch_maximum_in = 2
-	pitch_minimum_in = 3
-	pitch_range_in = 4
-	pitch_mean_derivative_in = 5
-	energy_mean_in = 6
-	energy_variance_in = 7
-	energy_maximum_in = 8
-	energy_range_in = 9
+	#nahravaj
+	recordVoice("recording.wav", 5)
+
+	pitches = getPitches("recording.wav")
+	energies = getEnergies("recording.wav")
 
 	#### Fuzzyfication ####
-	pitch_mean_in = pitch_mean_category(pitch_mean_in)
-	pitch_variance_in = pitch_variance_category(pitch_variance_in)
-	pitch_maximum_in = pitch_maximum_category(pitch_maximum_in)
-	pitch_minimum_in = pitch_minimum_category(pitch_minimum_in)
-	pitch_range_in = pitch_range_category(pitch_range_in)
-	pitch_mean_derivative_in = pitch_mean_derivative_category(pitch_mean_derivative_in)
-	energy_mean_in = energy_mean_category(energy_mean_in)
-	energy_variance_in = energy_variance_category(energy_variance_in)
-	energy_maximum_in = energy_maximum_category(energy_maximum_in)
-	energy_range_in = energy_range_category(energy_range_in)
+	pitch_mean_in = pitch_mean_category(pitches['p'])
+	pitch_variance_in = pitch_variance_category(pitches['p_variance'])
+	pitch_maximum_in = pitch_maximum_category(pitches['p_maximum'])
+	pitch_minimum_in = pitch_minimum_category(pitches['p_minimum'])
+	pitch_range_in = pitch_range_category(pitches['p_range'])
+	energy_mean_in = energy_mean_category(energies['e'])
+	energy_variance_in = energy_variance_category(energies['e_varience'])
+	energy_maximum_in = energy_maximum_category(energies['e_maximum'])
+	energy_range_in = energy_range_category(energies['e_range'])
 
 	#### Geting emotional output ####
 	basic_emotions[BasicEmotions.joy.value] = (pitch_mean_in['low'] + pitch_variance_in['high']) / 2
-	basic_emotions[BasicEmotions.trust.value] = (pitch_mean_in['high'] + pitch_variance_in['low']) / 2
+	basic_emotions[BasicEmotions.trust.value] = (pitch_mean_in['low'] + pitch_variance_in['high']) / 2
 	#basic_emotions[BasicEmotions.fear.value] = (pitch_mean_in['low'] + pitch_variance_in['high']) / 2
 	#basic_emotions[BasicEmotions.surprise.value] = (pitch_mean_in['high'] + pitch_variance_in['low']) / 2
 	#basic_emotions[BasicEmotions.sadness.value] = (pitch_mean_in['low'] + pitch_variance_in['high']) / 2
@@ -225,8 +315,8 @@ while True:
 	#basic_emotions[BasicEmotions.anger.value] = (pitch_mean_in['low'] + pitch_variance_in['high']) / 2
 	#basic_emotions[BasicEmotions.anticipation.value] = (pitch_mean_in['high'] + pitch_variance_in['low']) / 2
 
-	win_emotion = getMaxEmotion(copy.copy(basic_emotions))
+	makeBehaveior(getMaxEmotion(copy.copy(basic_emotions)))
 
-	print  win_emotion.name
-	time.sleep(1)
+	raw_input("Press ENTER to detect new voice.")
+	
 
