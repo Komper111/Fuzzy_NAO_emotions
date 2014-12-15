@@ -5,7 +5,7 @@ import skfuzzy as fuzz
 import numpy as np
 from enum import Enum
 from naoqi import ALProxy
-from aubio import fvec, source, pvoc, filterbank
+from aubio import fvec, source, pvoc, filterbank, pitch, freqtomidi
 from numpy import vstack, zeros
 import pyaudio
 import wave
@@ -67,45 +67,100 @@ class OtherEmotions(Enum):
 #naoSpeech = ALProxy("ALTextToSpeech", NAO_IP, 9559)
 
 ##### Input universes #####
-inputUniverses = []
-inputUniverses.append(np.arange(0, 5, .1)) 
-inputUniverses.append(np.arange(0, 5, .1))
-inputUniverses.append(np.arange(0, 10, .1))
-inputUniverses.append(np.arange(0, 10, .1))
-inputUniverses.append(np.arange(0, 10, .1))
-inputUniverses.append(np.arange(0, 10, .1))
-inputUniverses.append(np.arange(0, 10, .1))
-inputUniverses.append(np.arange(0, 10, .1))
-inputUniverses.append(np.arange(0, 10, .1))
+inputUniverses = [None] * 9
+inputUniverses[InVariables.pitch_mean.value] = np.arange(0, 2000, .1)
+inputUniverses[InVariables.pitch_variance.value] = np.arange(0, 40000000, .1))
+inputUniverses[InVariables.pitch_maximum.value] = np.arange(0, 15000, .1))
+inputUniverses[InVariables.pitch_minimum.value] = np.arange(0, 100, .1))
+inputUniverses[InVariables.pitch_range.value] = np.arange(0, 15000, .1))
+inputUniverses[InVariables.energy_mean.value] = np.arange(0, 1, .0001))
+inputUniverses[InVariables.energy_variance.value] = np.arange(0, 1, .00001))
+inputUniverses[InVariables.energy_maximum.value] = np.arange(0, 5, .1))
+inputUniverses[InVariables.energy_range.value] = np.arange(0, 5, .1))
 
 ##### Membership functions #####
 ### membership functions of pitch mean ###
-low_pitch_mean = fuzz.gaussmf(inputUniverses[InVariables.pitch_mean.value], 0, 5)
-high_pitch_mean = fuzz.gaussmf(inputUniverses[InVariables.pitch_mean.value], 5, 5)
+memb_func = [[None] * 8] * 9
+memb_func[InVariables.pitch_mean.value][BasicEmotions.joy.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_mean.value], 0, 2)
+memb_func[InVariables.pitch_mean.value][BasicEmotions.trust.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_mean.value], 5, 5)
+memb_func[InVariables.pitch_mean.value][BasicEmotions.fear.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_mean.value], 5, 5)
+memb_func[InVariables.pitch_mean.value][BasicEmotions.surprise.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_mean.value], 5, 5)
+memb_func[InVariables.pitch_mean.value][BasicEmotions.sadness.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_mean.value], 5, 5)
+memb_func[InVariables.pitch_mean.value][BasicEmotions.disgust.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_mean.value], 5, 5)
+memb_func[InVariables.pitch_mean.value][BasicEmotions.anger.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_mean.value], 5, 5)
+memb_func[InVariables.pitch_mean.value][BasicEmotions.anticipation.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_mean.value], 5, 5)
 ### membership functions of pitch variance ###
-low_pitch_variance = fuzz.gaussmf(inputUniverses[InVariables.pitch_variance.value], 0, 5)
-high_pitch_variance = fuzz.gaussmf(inputUniverses[InVariables.pitch_variance.value], 5, 5)
+memb_func[InVariables.pitch_variance.value][BasicEmotions.joy.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_variance.value], 0, 5)
+memb_func[InVariables.pitch_variance.value][BasicEmotions.trust.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_variance.value], 5, 5)
+memb_func[InVariables.pitch_variance.value][BasicEmotions.fear.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_variance.value], 0, 5)
+memb_func[InVariables.pitch_variance.value][BasicEmotions.surprise.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_variance.value], 5, 5)
+memb_func[InVariables.pitch_variance.value][BasicEmotions.sadness.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_variance.value], 0, 5)
+memb_func[InVariables.pitch_variance.value][BasicEmotions.disgust.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_variance.value], 5, 5)
+memb_func[InVariables.pitch_variance.value][BasicEmotions.anger.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_variance.value], 0, 5)
+memb_func[InVariables.pitch_variance.value][BasicEmotions.anticipation.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_variance.value], 5, 5)
 ### membership functions of pitch maximum ###
-low_pitch_maximum = fuzz.gaussmf(inputUniverses[InVariables.pitch_maximum.value], 0, 2)
-high_pitch_maximum = fuzz.gaussmf(inputUniverses[InVariables.pitch_maximum.value], 0, 2)
+memb_func[InVariables.pitch_maximum.value][BasicEmotions.joy.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_maximum.value], 0, 2)
+memb_func[InVariables.pitch_maximum.value][BasicEmotions.trust.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_maximum.value], 0, 2)
+memb_func[InVariables.pitch_maximum.value][BasicEmotions.fear.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_maximum.value], 0, 2)
+memb_func[InVariables.pitch_maximum.value][BasicEmotions.surprise.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_maximum.value], 0, 2)
+memb_func[InVariables.pitch_maximum.value][BasicEmotions.sadness.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_maximum.value], 0, 2)
+memb_func[InVariables.pitch_maximum.value][BasicEmotions.disgust.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_maximum.value], 0, 2)
+memb_func[InVariables.pitch_maximum.value][BasicEmotions.anger.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_maximum.value], 0, 2)
+memb_func[InVariables.pitch_maximum.value][BasicEmotions.anticipation.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_maximum.value], 0, 2)
 ### membership functions of pitch minimum ###
-low_pitch_minimum = fuzz.gaussmf(inputUniverses[InVariables.pitch_minimum.value], 0, 2)
-high_pitch_minimum = fuzz.gaussmf(inputUniverses[InVariables.pitch_minimum.value], 0, 2)
+memb_func[InVariables.pitch_minimum.value][BasicEmotions.joy.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_minimum.value], 0, 2)
+memb_func[InVariables.pitch_minimum.value][BasicEmotions.trust.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_minimum.value], 0, 2)
+memb_func[InVariables.pitch_minimum.value][BasicEmotions.fear.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_minimum.value], 0, 2)
+memb_func[InVariables.pitch_minimum.value][BasicEmotions.surprise.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_minimum.value], 0, 2)
+memb_func[InVariables.pitch_minimum.value][BasicEmotions.sadness.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_minimum.value], 0, 2)
+memb_func[InVariables.pitch_minimum.value][BasicEmotions.disgust.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_minimum.value], 0, 2)
+memb_func[InVariables.pitch_minimum.value][BasicEmotions.anger.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_minimum.value], 0, 2)
+memb_func[InVariables.pitch_minimum.value][BasicEmotions.anticipation.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_minimum.value], 0, 2)
 ### membership functions of pitch range ###
-low_pitch_range = fuzz.gaussmf(inputUniverses[InVariables.pitch_range.value], 0, 2)
-high_pitch_range = fuzz.gaussmf(inputUniverses[InVariables.pitch_range.value], 0, 2)
+memb_func[InVariables.pitch_range.value][BasicEmotions.joy.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_range.value], 0, 2)
+memb_func[InVariables.pitch_range.value][BasicEmotions.trust.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_range.value], 0, 2)
+memb_func[InVariables.pitch_range.value][BasicEmotions.fear.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_range.value], 0, 2)
+memb_func[InVariables.pitch_range.value][BasicEmotions.surprise.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_range.value], 0, 2)
+memb_func[InVariables.pitch_range.value][BasicEmotions.sadness.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_range.value], 0, 2)
+memb_func[InVariables.pitch_range.value][BasicEmotions.disgust.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_range.value], 0, 2)
+memb_func[InVariables.pitch_range.value][BasicEmotions.anger.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_range.value], 0, 2)
+memb_func[InVariables.pitch_range.value][BasicEmotions.anticipation.value] = fuzz.gaussmf(inputUniverses[InVariables.pitch_range.value], 0, 2)
 ### membership functions of energy mean ###
-low_energy_mean = fuzz.gaussmf(inputUniverses[InVariables.energy_mean.value], 0, 2)
-high_energy_mean = fuzz.gaussmf(inputUniverses[InVariables.energy_mean.value], 0, 2)
-### membership functions of pitch variance ###
-low_energy_variance = fuzz.gaussmf(inputUniverses[InVariables.energy_variance.value], 0, 2)
-high_energy_variance = fuzz.gaussmf(inputUniverses[InVariables.energy_variance.value], 0, 2)
-### membership functions of pitch maximum ###
-low_energy_maximum = fuzz.gaussmf(inputUniverses[InVariables.energy_maximum.value], 0, 2)
-high_energy_maximum = fuzz.gaussmf(inputUniverses[InVariables.energy_maximum.value], 0, 2)
-### membership functions of pitch range ###
-low_energy_range = fuzz.gaussmf(inputUniverses[InVariables.energy_range.value], 0, 2)
-high_energy_range = fuzz.gaussmf(inputUniverses[InVariables.energy_range.value], 0, 2)
+memb_func[InVariables.energy_mean.value][BasicEmotions.joy.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_mean.value], 0, 2)
+memb_func[InVariables.energy_mean.value][BasicEmotions.trust.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_mean.value], 0, 2)
+memb_func[InVariables.energy_mean.value][BasicEmotions.fear.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_mean.value], 0, 2)
+memb_func[InVariables.energy_mean.value][BasicEmotions.surprise.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_mean.value], 0, 2)
+memb_func[InVariables.energy_mean.value][BasicEmotions.sadness.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_mean.value], 0, 2)
+memb_func[InVariables.energy_mean.value][BasicEmotions.disgust.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_mean.value], 0, 2)
+memb_func[InVariables.energy_mean.value][BasicEmotions.anger.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_mean.value], 0, 2)
+memb_func[InVariables.energy_mean.value][BasicEmotions.anticipation.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_mean.value], 0, 2)
+### membership functions of energy variance ###
+memb_func[InVariables.energy_variance.value][BasicEmotions.joy.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_variance.value], 0, 2)
+memb_func[InVariables.energy_variance.value][BasicEmotions.trust.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_variance.value], 0, 2)
+memb_func[InVariables.energy_variance.value][BasicEmotions.fear.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_variance.value], 0, 2)
+memb_func[InVariables.energy_variance.value][BasicEmotions.surprise.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_variance.value], 0, 2)
+memb_func[InVariables.energy_variance.value][BasicEmotions.sadness.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_variance.value], 0, 2)
+memb_func[InVariables.energy_variance.value][BasicEmotions.disgust.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_variance.value], 0, 2)
+memb_func[InVariables.energy_variance.value][BasicEmotions.anger.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_variance.value], 0, 2)
+memb_func[InVariables.energy_variance.value][BasicEmotions.anticipation.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_variance.value], 0, 2)
+### membership functions of energy maximum ###
+memb_func[InVariables.energy_maximum.value][BasicEmotions.joy.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_maximum.value], 0, 2)
+memb_func[InVariables.energy_maximum.value][BasicEmotions.trust.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_maximum.value], 0, 2)
+memb_func[InVariables.energy_maximum.value][BasicEmotions.fear.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_maximum.value], 0, 2)
+memb_func[InVariables.energy_maximum.value][BasicEmotions.surprise.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_maximum.value], 0, 2)
+memb_func[InVariables.energy_maximum.value][BasicEmotions.sadness.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_maximum.value], 0, 2)
+memb_func[InVariables.energy_maximum.value][BasicEmotions.disgust.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_maximum.value], 0, 2)
+memb_func[InVariables.energy_maximum.value][BasicEmotions.anger.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_maximum.value], 0, 2)
+memb_func[InVariables.energy_maximum.value][BasicEmotions.anticipation.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_maximum.value], 0, 2)
+### membership functions of energy range ###
+memb_func[InVariables.energy_range.value][BasicEmotions.joy.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_range.value], 0, 2)
+memb_func[InVariables.energy_range.value][BasicEmotions.trust.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_range.value], 0, 2)
+memb_func[InVariables.energy_range.value][BasicEmotions.fear.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_range.value], 0, 2)
+memb_func[InVariables.energy_range.value][BasicEmotions.surprise.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_range.value], 0, 2)
+memb_func[InVariables.energy_range.value][BasicEmotions.sadness.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_range.value], 0, 2)
+memb_func[InVariables.energy_range.value][BasicEmotions.disgust.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_range.value], 0, 2)
+memb_func[InVariables.energy_range.value][BasicEmotions.anger.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_range.value], 0, 2)
+memb_func[InVariables.energy_range.value][BasicEmotions.anticipation.value] = fuzz.gaussmf(inputUniverses[InVariables.energy_range.value], 0, 2)
 
 #### Sound detection ####
 def recordVoice(NAME, SECONDS):
@@ -146,14 +201,59 @@ def recordVoice(NAME, SECONDS):
 	wf.close()
 
 #### Sound analyze functions ####
-def getPitches(filename):
-	pass
+def getPitches(filename, pitch):
+	downsample = 1
+	samplerate = 44100
+	hop_s = 512 / downsample
+	win_s = 4096 / downsample
+	pitch_sum = 0
+	pitch_dif_sum = 0
+
+	pitch_o = pitch("yin", win_s, hop_s, samplerate)
+	s = source(filename, samplerate, hop_s)
+
+	pitches = []
+
+	i=0
+	minimum = 100
+	maximum = 0
+
+	while True:
+		
+		samples, read = s()
+		i = i + 1
+		pitch = pitch_o(samples)[0]
+		if (pitch < minimum) & (pitch != 0):
+			minimum = pitch
+			#print i
+			#print pitch
+		if (pitch > maximum) & (pitch < 20000):
+			maximum = pitch
+		pitches.append(pitch)
+
+		pitch_sum = pitch_sum + pitch
+		if read < hop_s: break
+
+	 
+	pitch_mean = pitch_sum / len(pitches)
+
+
+	for j in pitches:
+		pitch_difference = pow((j - pitch_mean), 2)
+		pitch_dif_sum = pitch_dif_sum + pitch_difference
+
+
+	pitch_variance = pitch_dif_sum / len(pitches)
+	pitch_max = maximum
+	pitch_min = minimum
+	pitch_range = pitch_max - pitch_min
+	return [pitch_mean, pitch_dif_sum / len(pitches), maximum, minimum, pitch_max - pitch_min]
 
 def getEnergies(filename):
 	win_s = 512                 # fft size
 	hop_s = win_s / 4           # hop size
 
-	samplerate = 0
+	samplerate = 44100
 	s = source(filename, samplerate, hop_s)
 	samplerate = s.samplerate
 
@@ -203,53 +303,15 @@ def getEnergies(filename):
 	#print "Max energy: " + str(energy_maximum)
 	#print "Energy range: " + str(energy_range)
 	#print "Energy variance: " + str(energy_variance)
-	return dict(e = energy, e_varience = energy_variance, e_maximum = energy_maximum, e_range = energy_range)
+	return [energy, energy_variance, energy_maximum, energy_range]
 
-#### Category functions ####
-def pitch_mean_category(pitch_mean_in):
-    pitch_mean_cat_low = fuzz.interp_membership(inputUniverses[InVariables.pitch_mean.value],low_pitch_mean,pitch_mean_in)
-    pitch_mean_cat_high = fuzz.interp_membership(inputUniverses[InVariables.pitch_mean.value],high_pitch_mean,pitch_mean_in) 
-    return dict(low = pitch_mean_cat_low,high = pitch_mean_cat_high)
-
-def pitch_variance_category(pitch_variance_in):
-    pitch_variance_cat_low = fuzz.interp_membership(inputUniverses[InVariables.pitch_variance.value], low_pitch_variance, pitch_variance_in)
-    pitch_variance_cat_high = fuzz.interp_membership(inputUniverses[InVariables.pitch_variance.value], high_pitch_variance, pitch_variance_in) 
-    return dict(low = pitch_variance_cat_low,high = pitch_variance_cat_high)
-
-def pitch_maximum_category(pitch_maximum_in):
-    pitch_maximum_cat_low = fuzz.interp_membership(inputUniverses[InVariables.pitch_maximum.value], low_pitch_maximum, pitch_maximum_in)
-    pitch_maximum_cat_high = fuzz.interp_membership(inputUniverses[InVariables.pitch_maximum.value], high_pitch_maximum, pitch_maximum_in) 
-    return dict(low = pitch_maximum_cat_low,high = pitch_maximum_cat_high)
-
-def pitch_minimum_category(pitch_minimum_in):
-    pitch_minimum_cat_low = fuzz.interp_membership(inputUniverses[InVariables.pitch_minimum.value], low_pitch_minimum, pitch_minimum_in)
-    pitch_minimum_cat_high = fuzz.interp_membership(inputUniverses[InVariables.pitch_minimum.value], high_pitch_minimum, pitch_minimum_in) 
-    return dict(low = pitch_minimum_cat_low,high = pitch_minimum_cat_high)
-
-def pitch_range_category(pitch_range_in):
-    pitch_range_cat_low = fuzz.interp_membership(inputUniverses[InVariables.pitch_range.value], low_pitch_range, pitch_range_in)
-    pitch_range_cat_high = fuzz.interp_membership(inputUniverses[InVariables.pitch_range.value], high_pitch_range, pitch_range_in) 
-    return dict(low = pitch_range_cat_low,high = pitch_range_cat_high)
-
-def energy_mean_category(energy_mean_in):
-    energy_mean_cat_low = fuzz.interp_membership(inputUniverses[InVariables.energy_mean.value], low_energy_mean, energy_mean_in)
-    energy_mean_cat_high = fuzz.interp_membership(inputUniverses[InVariables.energy_mean.value], high_energy_mean, energy_mean_in) 
-    return dict(low = energy_mean_cat_low,high = energy_mean_cat_high)
-
-def energy_variance_category(energy_variance_in):
-    energy_variance_cat_low = fuzz.interp_membership(inputUniverses[InVariables.energy_variance.value], low_energy_variance, energy_variance_in)
-    energy_variance_cat_high = fuzz.interp_membership(inputUniverses[InVariables.energy_variance.value], high_energy_variance, energy_variance_in) 
-    return dict(low = energy_variance_cat_low,high = energy_variance_cat_high)
-
-def energy_maximum_category(energy_maximum_in):
-    energy_maximum_cat_low = fuzz.interp_membership(inputUniverses[InVariables.energy_maximum.value], low_energy_maximum, energy_maximum_in)
-    energy_maximum_cat_high = fuzz.interp_membership(inputUniverses[InVariables.energy_maximum.value], high_energy_maximum, energy_maximum_in) 
-    return dict(low = energy_maximum_cat_low,high = energy_maximum_cat_high)
-
-def energy_range_category(energy_range_in):
-    energy_range_cat_low = fuzz.interp_membership(inputUniverses[InVariables.energy_range.value], low_energy_range, energy_range_in)
-    energy_range_cat_high = fuzz.interp_membership(inputUniverses[InVariables.energy_range.value], high_energy_range, energy_range_in) 
-    return dict(low = energy_range_cat_low,high = energy_range_cat_high)
+#### Category function ####
+def get_memberships(inputs):
+	categories = [[None] * 8] * 9
+	for i in range(0, len(memb_func)):
+		for j in range(0, len(memb_func[i])):
+			categories[i][j] = fuzz.interp_membership(inputUniverses[i], memb_func[i][j], inputs[i])
+	return categories
 
 #### other functions ####
 def getMaxEmotion(emotions):	
@@ -284,39 +346,25 @@ def makeBehaveior(emotion):
 		naoSpeech.say(s)
 
 #### Basic emotions values ####
-basic_emotions = [0,0,0,0,0,0,0,0]
-	
+basic_emotions = [0] * 8
 
+#### Main algorithm ####	
 while True:
+	raw_input("Press ENTER to detect new voice.")
+	doc = "recording.wav"
 	#nahravaj
-	recordVoice("recording.wav", 5)
-
-	pitches = getPitches("recording.wav")
-	energies = getEnergies("recording.wav")
+	recordVoice(doc, 5)
+ 	inputs= getPitches(doc, pitch).extend(getEnergies(doc))
 
 	#### Fuzzyfication ####
-	pitch_mean_in = pitch_mean_category(pitches['p'])
-	pitch_variance_in = pitch_variance_category(pitches['p_variance'])
-	pitch_maximum_in = pitch_maximum_category(pitches['p_maximum'])
-	pitch_minimum_in = pitch_minimum_category(pitches['p_minimum'])
-	pitch_range_in = pitch_range_category(pitches['p_range'])
-	energy_mean_in = energy_mean_category(energies['e'])
-	energy_variance_in = energy_variance_category(energies['e_varience'])
-	energy_maximum_in = energy_maximum_category(energies['e_maximum'])
-	energy_range_in = energy_range_category(energies['e_range'])
+	memberships = get_memberships(inputs)
 
 	#### Geting emotional output ####
-	basic_emotions[BasicEmotions.joy.value] = (pitch_mean_in['low'] + pitch_variance_in['high']) / 2
-	basic_emotions[BasicEmotions.trust.value] = (pitch_mean_in['low'] + pitch_variance_in['high']) / 2
-	#basic_emotions[BasicEmotions.fear.value] = (pitch_mean_in['low'] + pitch_variance_in['high']) / 2
-	#basic_emotions[BasicEmotions.surprise.value] = (pitch_mean_in['high'] + pitch_variance_in['low']) / 2
-	#basic_emotions[BasicEmotions.sadness.value] = (pitch_mean_in['low'] + pitch_variance_in['high']) / 2
-	#basic_emotions[BasicEmotions.disust.value] = (pitch_mean_in['high'] + pitch_variance_in['low']) / 2
-	#basic_emotions[BasicEmotions.anger.value] = (pitch_mean_in['low'] + pitch_variance_in['high']) / 2
-	#basic_emotions[BasicEmotions.anticipation.value] = (pitch_mean_in['high'] + pitch_variance_in['low']) / 2
+	for i in range(0, len(basic_emotions)):
+		for j in range(0, len(memberships)):
+			basic_emotions[i] += memberships[j][i]
 
 	makeBehaveior(getMaxEmotion(copy.copy(basic_emotions)))
 
-	raw_input("Press ENTER to detect new voice.")
 	
 
