@@ -22,7 +22,7 @@ def getPitches(filename, pitch):
 	i=0
 	minimum = 100
 	maximum = 0
-
+	pice = 0
 	while True:
 		
 		samples, read = s()
@@ -35,20 +35,22 @@ def getPitches(filename, pitch):
 		if (pitch > maximum) & (pitch < 20000):
 			maximum = pitch
 		pitches.append(pitch)
-
-		pitch_sum = pitch_sum + pitch
+		if (pitch < 20000):
+			pitch_sum = pitch_sum + pitch
+		else:
+			pice += 1
 		if read < hop_s: break
 
 	 
-	pitch_mean = pitch_sum / len(pitches)
-
+	pitch_mean = pitch_sum / (len(pitches) - pice)
 
 	for j in pitches:
-		pitch_difference = pow((j - pitch_mean), 2)
-		pitch_dif_sum = pitch_dif_sum + pitch_difference
+		if (pitch < 20000):
+			pitch_difference = pow((j - pitch_mean), 2)
+			pitch_dif_sum = pitch_dif_sum + pitch_difference
 
 
-	pitch_variance = pitch_dif_sum / len(pitches)
+	pitch_variance = pitch_dif_sum / (len(pitches) - pice)/10000
 	pitch_max = maximum
 	pitch_min = minimum
 	pitch_range = pitch_max - pitch_min
@@ -60,7 +62,6 @@ def getPitches(filename, pitch):
 	print "pitch variance:", pitch_variance 
 	print "pitch maximum:", pitch_max
 	print "pitch minimum:", pitch_min
-	print "pitch_range", pitch_range
 
 def getEnergies(filename):
 	win_s = 512                 # fft size
@@ -108,14 +109,13 @@ def getEnergies(filename):
 	for e in avg_energies:
 		su += e
 		su2 += pow(e, 2)
-	energy = su/len(avg_energies)
-	energy_variance = su2/len(avg_energies)
+	energy = su/len(avg_energies) *1000
+	energy_variance = su2/len(avg_energies) *10000
 	energy_range = energy_maximum - energy_minimum
 
 	print "Energy: " + str(energy)
-	print "Max energy: " + str(energy_maximum)
-	print "Energy range: " + str(energy_range)
-	print "Energy variance: " + str(energy_variance)
+	print "Energy variance: " + str(energy_variance) 
+	print "Max energy: " + str(energy_maximum * 1000)
 
 getPitches(sys.argv[1], pitch)
 getEnergies(sys.argv[1])
